@@ -1,6 +1,6 @@
 // API Configuration
 // Update this URL to your PHP backend base URL
-export const API_BASE_URL = 'https://your-php-backend.com/api';
+export const API_BASE_URL = 'https://partsbaypro.com/backend-php/api';
 
 // API Endpoints
 export const API_ENDPOINTS = {

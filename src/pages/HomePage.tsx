@@ -1,116 +1,19 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { ProductCard } from '@/components/products/ProductCard';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Car, Wrench, Battery, Gauge, Filter } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Search, Car, Wrench, Battery, Gauge, Filter, Loader2 } from 'lucide-react';
 import { Product, Category } from '@/types';
-
-// Mock data - replace with API calls
-const mockCategories: Category[] = [
-  { id: 1, name: 'Engine Parts', slug: 'engine-parts', product_count: 124 },
-  { id: 2, name: 'Brake System', slug: 'brake-system', product_count: 89 },
-  { id: 3, name: 'Batteries', slug: 'batteries', product_count: 45 },
-  { id: 4, name: 'Filters', slug: 'filters', product_count: 156 },
-  { id: 5, name: 'Suspension', slug: 'suspension', product_count: 78 },
-  { id: 6, name: 'Electrical', slug: 'electrical', product_count: 234 },
-];
-
-const mockProducts: Product[] = [
-  {
-    id: 1,
-    vendor_id: 1,
-    vendor_name: 'AutoParts Pro',
-    name: 'High Performance Brake Pads - Front Axle Set',
-    description: 'Premium ceramic brake pads for superior stopping power',
-    price: 899.99,
-    sale_price: 749.99,
-    category_id: 2,
-    category_name: 'Brake System',
-    brand: 'Brembo',
-    model_compatibility: ['BMW 3 Series', 'BMW 5 Series'],
-    year_range_start: 2015,
-    year_range_end: 2023,
-    condition: 'new',
-    sku: 'BRK-001',
-    stock_quantity: 25,
-    images: [{ id: 1, url: 'https://placehold.co/400x400/1a365d/ffffff?text=Brake+Pads', is_primary: true }],
-    specifications: [{ key: 'Material', value: 'Ceramic' }],
-    warranty_months: 24,
-    is_active: true,
-    created_at: '2024-01-15',
-    updated_at: '2024-01-15',
-  },
-  {
-    id: 2,
-    vendor_id: 2,
-    vendor_name: 'Motor Spares SA',
-    name: 'Oil Filter - Multi-Vehicle Fit',
-    description: 'Universal oil filter compatible with most vehicles',
-    price: 149.99,
-    category_id: 4,
-    category_name: 'Filters',
-    brand: 'Bosch',
-    model_compatibility: ['Toyota Corolla', 'Honda Civic', 'VW Golf'],
-    condition: 'new',
-    sku: 'FLT-002',
-    stock_quantity: 150,
-    images: [{ id: 2, url: 'https://placehold.co/400x400/2d3748/ffffff?text=Oil+Filter', is_primary: true }],
-    specifications: [{ key: 'Type', value: 'Spin-on' }],
-    warranty_months: 12,
-    is_active: true,
-    created_at: '2024-01-10',
-    updated_at: '2024-01-10',
-  },
-  {
-    id: 3,
-    vendor_id: 1,
-    vendor_name: 'AutoParts Pro',
-    name: 'Car Battery 12V 60Ah',
-    description: 'Reliable starting power for most passenger vehicles',
-    price: 1299.99,
-    sale_price: 1099.99,
-    category_id: 3,
-    category_name: 'Batteries',
-    brand: 'Willard',
-    model_compatibility: ['Universal'],
-    condition: 'new',
-    sku: 'BAT-003',
-    stock_quantity: 30,
-    images: [{ id: 3, url: 'https://placehold.co/400x400/1e40af/ffffff?text=Battery', is_primary: true }],
-    specifications: [{ key: 'Voltage', value: '12V' }, { key: 'Capacity', value: '60Ah' }],
-    warranty_months: 24,
-    is_active: true,
-    created_at: '2024-01-12',
-    updated_at: '2024-01-12',
-  },
-  {
-    id: 4,
-    vendor_id: 3,
-    vendor_name: 'Engine Masters',
-    name: 'Spark Plug Set - 4 Pack',
-    description: 'Iridium spark plugs for optimal engine performance',
-    price: 459.99,
-    category_id: 1,
-    category_name: 'Engine Parts',
-    brand: 'NGK',
-    model_compatibility: ['Toyota', 'Honda', 'Mazda'],
-    condition: 'new',
-    sku: 'SPK-004',
-    stock_quantity: 80,
-    images: [{ id: 4, url: 'https://placehold.co/400x400/7c3aed/ffffff?text=Spark+Plugs', is_primary: true }],
-    specifications: [{ key: 'Type', value: 'Iridium' }],
-    warranty_months: 12,
-    is_active: true,
-    created_at: '2024-01-08',
-    updated_at: '2024-01-08',
-  },
-];
+import apiService from '@/services/api';
+import { API_ENDPOINTS } from '@/config/api';
 
 const categoryIcons: Record<string, React.ElementType> = {
+  'auto-parts': Wrench,
+  'car-accessories': Car,
+  'tools-equipment': Wrench,
   'engine-parts': Wrench,
   'brake-system': Gauge,
   'batteries': Battery,
@@ -121,6 +24,34 @@ const categoryIcons: Record<string, React.ElementType> = {
 
 const HomePage: React.FC = () => {
   const { user } = useAuth();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const [catResponse, prodResponse] = await Promise.allSettled([
+          apiService.get<{ success: boolean; data: Category[] }>(API_ENDPOINTS.CATEGORIES),
+          apiService.get<{ success: boolean; data: Product[]; meta?: unknown }>(API_ENDPOINTS.PRODUCTS + '?per_page=4'),
+        ]);
+
+        if (catResponse.status === 'fulfilled' && catResponse.value?.data) {
+          setCategories(Array.isArray(catResponse.value.data) ? catResponse.value.data : []);
+        }
+        if (prodResponse.status === 'fulfilled' && prodResponse.value?.data) {
+          setProducts(Array.isArray(prodResponse.value.data) ? prodResponse.value.data : []);
+        }
+      } catch {
+        // API not reachable - show empty state
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   return (
     <div className="animate-fade-in">
@@ -150,25 +81,35 @@ const HomePage: React.FC = () => {
         {/* Categories */}
         <section className="mb-6">
           <h2 className="mb-3 text-lg font-semibold">Categories</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {mockCategories.map((category) => {
-              const Icon = categoryIcons[category.slug] || Car;
-              return (
-                <Link key={category.id} to={`/category/${category.slug}`}>
-                  <Card className="transition-shadow hover:shadow-md">
-                    <CardContent className="flex flex-col items-center p-4">
-                      <div className="mb-2 rounded-full bg-primary/10 p-3">
-                        <Icon className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="text-center text-xs font-medium leading-tight">
-                        {category.name}
-                      </span>
-                    </CardContent>
-                  </Card>
-                </Link>
-              );
-            })}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Skeleton key={i} className="h-24 rounded-lg" />
+              ))}
+            </div>
+          ) : categories.length > 0 ? (
+            <div className="grid grid-cols-3 gap-3">
+              {categories.map((category) => {
+                const Icon = categoryIcons[category.slug] || Car;
+                return (
+                  <Link key={category.id} to={`/search?category=${category.slug}`}>
+                    <Card className="transition-shadow hover:shadow-md">
+                      <CardContent className="flex flex-col items-center p-4">
+                        <div className="mb-2 rounded-full bg-primary/10 p-3">
+                          <Icon className="h-5 w-5 text-primary" />
+                        </div>
+                        <span className="text-center text-xs font-medium leading-tight">
+                          {category.name}
+                        </span>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No categories available yet</p>
+          )}
         </section>
 
         {/* Featured Products */}
@@ -179,11 +120,27 @@ const HomePage: React.FC = () => {
               View all
             </Link>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {mockProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {isLoading ? (
+            <div className="grid grid-cols-2 gap-3">
+              {[1, 2, 3, 4].map((i) => (
+                <Skeleton key={i} className="h-48 rounded-lg" />
+              ))}
+            </div>
+          ) : products.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {products.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  No products available yet. Connect your backend API to see products.
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </section>
 
         {/* Quick Actions for Non-logged in users */}
